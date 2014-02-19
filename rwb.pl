@@ -517,48 +517,48 @@ if ($action eq "near") {
 }
 
 
-if ($action eq "invite-user") { 
-    my @rows;
-    eval { @rows = ExecSQL($dbuser, $dbpasswd, "select action from RWB_PERMISSIONS where name='$user'", "COL"); };
-    
-    print start_form(-name=>'invite'),p,p,
-    "Email: ", textfield(-name=>'email'),p,
-    hidden(-name=>'run',default=>['1']),
-    hidden(-name=>'act',default=>['invite-user']),h3("select permissions"),
-    popup_menu(-name=>'perms',
-    -multiple=>'true',
-    -values=>[@rows]
-    ),p,
-    submit,
-    end_form;
-    if (defined(param("email"))) {
+if ($action eq "invite-user") { my @rows;
+      eval { @rows = ExecSQL($dbuser, $dbpasswd, "select action from RWB_PERMISSIONS where name='$user'", "COL"); };
+
+      print start_form(-name=>'invite'),p,p,
+      "Email: ", textfield(-name=>'email'),p,
+      hidden(-name=>'run',default=>['1']),
+      hidden(-name=>'act',default=>['invite-user']),h3("select permissions"),
+      popup_menu(-name=>'perms',
+        -multiple=>'true',
+        -values=>[@rows]
+        ),p,
+      submit,
+      end_form;
+      if (defined(param("email"))) {
         my $random_number = rand();
         eval { ExecSQL($dbuser,$dbpasswd,
-            "insert into rwb_invites (nonce) values (?)",undef, $random_number);};
-        
+          "insert into rwb_invites (nonce) values (?)",undef, $random_number);};
+
         my $permissions = join(',', param('perms'));
-        
+
         my $email = param("email");
-        
+
         use Net::SMTP;
         my $smtp = Net::SMTP->new('localhost');
-        
+
         $smtp->mail($ENV{USER});
         $smtp->to($email);
-        
+
         $smtp->data();
         $smtp->datasend("To: " . $email . "\n");
         $smtp->datasend("\n");
-        $smtp->datasend("http://". $ENV{'HTTP_HOST'} ."/~lsl702/rwb/rwb.pl?act=add-user&n=$random_number&ref=$user&perm=$permissions");
+        $smtp->datasend("http://". $ENV{'HTTP_HOST'} ."/~lsl702/rwb/rwb.pl?act=register-user&n=$random_number&ref=$user&perm=$permissions");
         $smtp->dataend();
         print $email . " has been sent an email request";
-    } else{
-        print "You must have an email";
-    }
-}
+        } else{
+          print "You must have an email";
+        }
+      }
 
 if ($action eq "give-opinion-data") { 
- print "<script src=\"http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js\" type=\"text/javascript\"></script>";
+  
+print "<script src=\"http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js\" type=\"text/javascript\"></script>";
    print "<script type=\"text/javascript\" src=\"custom.js\"></script>";
 
   if(defined(param('color'))){
@@ -582,12 +582,53 @@ if ($action eq "give-opinion-data") {
           end_form;
         }
 
-}
+
+ }
 
 if ($action eq "give-cs-ind-data") { 
   print h2("Giving Crowd-sourced Individual Geolocations Is Unimplemented");
 }
 
+if ($action eq "register-user")
+{
+
+if (!$run) { 
+      print start_form(-name=>'AddUser'),
+  h2('Add User'),
+    "Name: ", textfield(-name=>'name'),
+      p,
+        "Email: ", textfield(-name=>'email'),
+    p,
+      "Password: ", textfield(-name=>'password'),
+p,
+          hidden(-name=>'run',-default=>['1']),
+      hidden(-name=>'act',-default=>['register-user']),
+        submit,
+          end_form,
+            hr;
+}else {
+my $name=param('name');
+      my $email=param('email');
+      my $password=param('password');
+      my $error;
+      $error=UserAdd($name,$password,$email,'root');
+if ($error) { 
+  print "Can't add user because: $error";
+      }
+ else {
+	  print "Added user $name $email as referred by $user\n";
+      }
+	        my $name=param('name');
+                my $perm=url_param('perm');
+                my $error=GiveUserPerm($name,$perm);
+                if ($error) {
+                 print "Can't add permission to user because: $error";
+                 } else {
+                   print "Gave user $name permission $perm\n";
+                 }
+}
+
+}
 #
 # ADD-USER
 #
@@ -602,40 +643,33 @@ if ($action eq "add-user") {
   } else {
     if (!$run) { 
       print start_form(-name=>'AddUser'),
-	h2('Add User'),
-	  "Name: ", textfield(-name=>'name'),
-	    p,
-	      "Email: ", textfield(-name=>'email'),
-		p,
-		  "Password: ", textfield(-name=>'password'),
-		    p,
-		      hidden(-name=>'run',-default=>['1']),
-          hidden(-name=>'ref',-default=>[param('ref')]),###testing
-			hidden(-name=>'act',-default=>['add-user']),
-      hidden(-name=>'perm',-default=>[param('perm')]),###testing
-			  submit,
-			    end_form,
-			      hr;
+  h2('Add User'),
+    "Name: ", textfield(-name=>'name'),
+      p,
+        "Email: ", textfield(-name=>'email'),
+    p,
+      "Password: ", textfield(-name=>'password'),
+        p,
+          hidden(-name=>'run',-default=>['1']),
+      hidden(-name=>'act',-default=>['add-user']),
+        submit,
+          end_form,
+            hr;
     } else {
       my $name=param('name');
       my $email=param('email');
       my $password=param('password');
       my $error;
-      $error=UserAdd($name,$password,$email,$user,$ref);###testing
-      ###testing
-      foreach(@perms){
-                GiveUserPerm($name,$_);
-              }
-
+      $error=UserAdd($name,$password,$email,$user);
       if ($error) { 
-	print "Can't add user because: $error";
+  print "Can't add user because: $error";
       } else {
-	print "Added user $name $email as referred by $user\n";
+  print "Added user $name $email as referred by $user\n";
       }
     }
   }
-  print "<p><a href=\"rwb.pl?act=base&run=1\">Return</a></p>";
-}
+  print "<p><a href=\"rwb.pl?act=base&run=1\">Return</a></p>";}
+
 
 #
 # DELETE-USER
