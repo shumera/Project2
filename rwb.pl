@@ -34,7 +34,7 @@
 #
 # database input and output is paired into the two arrays noted
 #
-my $debug=1; # default - will be overriden by a form parameter or cookie
+my $debug=0; # default - will be overriden by a form parameter or cookie
 my @sqlinput=();
 my @sqloutput=();
 
@@ -77,8 +77,8 @@ use Time::ParseDate;
 #
 # You need to override these for access to your database
 #
-my $dbuser="lsl702";
-my $dbpasswd="z8OsvDpd4";
+my $dbuser="ija144";
+my $dbpasswd="z2fbbZDa3";
 
 
 #
@@ -276,7 +276,7 @@ print "<body style=\"height:100\%;margin:0\">";
 print "<style type=\"text/css\">\n\@import \"rwb.css\";\n</style>\n";
   
 
-print "<center>" if !$debug;
+#print "<center>" if !$debug;
 
 
 #
@@ -338,43 +338,76 @@ if ($action eq "base") {
   # And something to color (Red, White, or Blue)
   #
   print "<div id=\"color\" style=\"width:100\%; height:10\%\"></div>";
-
   #
   #
   # And a map which will be populated later
   #
   print "<div id=\"map\" style=\"width:100\%; height:80\%\"></div>";
   
-  my @rows;
-  eval { @rows = ExecSQL($dbuser, $dbpasswd, "select unique cycle from cs339.committee_master", "COL"); };
-  
-  # Checkboxes to select which data the user wants to see
-  print start_form(-name=>'selections'), 
-        h3("Select data"),
-        checkbox(-name=>'Committees',-id=>'committees',-checked=>'true'),p,
-        checkbox(-name=>'Individuals', -id=>'individuals', -checked=>'true'),p,
-        checkbox(-name=>'Candidates', -id=>'candidates', -checked=>'true'),p,
-        checkbox(-name=>'Opinions', -id=>'opinions', -checked=>'true'),p,
+  my %what;
+  my $whatparam = param("what");
+  if (!defined($whatparam) || $whatparam eq "all") { 
+    %what = ( committees => 1, 
+        candidates => 1,
+        individuals =>1,
+        opinions => 1);
+  } else {
+    map {$what{$_}=1} split(/\s*,\s*/,$whatparam);
+  }
+  if ($what{committees}) {
+      # visible if we are debugging
+      print "<div id=\"commagg\" style=\"width:100\%; height:10\%\"></div>";
+    } else {
+      # invisible otherwise
+      print "<div id=\"commagg\" style=\"display: none;\"></div>";
+  }
+  if ($what{individuals}) {
+      # visible if we are debugging
+      print "<div id=\"indvagg\" style=\"width:100\%; height:10\%\"></div>";
+    } else {
+      # invisible otherwise
+      print "<div id=\"indvagg\" style=\"display: none;\"></div>";
+  }
 
+  my @rows;
+  eval { @rows = ExecSQL($dbuser, $dbpasswd, "select unique cycle from cs339.committee_master order by cycle", "COL"); };
+
+   my $opinionsBool = 'false';
+   if(UserCan($user, "query-opinion-data")) { $opinionsBool = 'true'; }
+
+
+  # Checkboxes to select which data the user wants to see
+  print start_form(-name=>'selections'),
         h3("Select Cycles"),
           popup_menu(-name=>'Cycles',
           -id=>'cycles',
           -multiple=>'true',
           -values=>[@rows],
           -default=>'1112'),p,
+         h3("Select data"),
+        checkbox(-name=>'Committees',-id=>'committees',-checked=>'true',-onclick=>'UpdateMap()'),p,
+        checkbox(-name=>'Individuals', -id=>'individuals', -checked=>'true',-onclick=>'UpdateMap()'),p,
+        checkbox(-name=>'Candidates', -id=>'candidates', -checked=>'true',-onclick=>'UpdateMap()'),p,
         end_form;
+ if(UserCan($user, "query-opinion-data"))
+ {
+        print start_form(-name=>'selections2'),
+        checkbox(-name=>'Opinions', -id=>'opinions',-checked=>'true' ,-onclick=>'UpdateMap()'),p,
+        end_form;
+}
+
 
   #
   # And a div to populate with info about nearby stuff
   #
   #
   if ($debug) {
-    # visible if we are debugging
-    print "<div id=\"data\" style=\:width:100\%; height:10\%\"></div>";
-  } else {
-    # invisible otherwise
-    print "<div id=\"data\" style=\"display: none;\"></div>";
-}
+      # visible if we are debugging
+      print "<div id=\"data\" style=\:width:100\%; height:10\%\"></div>";
+    } else {
+      # invisible otherwise
+      print "<div id=\"data\" style=\"display: none;\"></div>";
+  }
 
 
 # height=1024 width=1024 id=\"info\" name=\"info\" onload=\"UpdateMap()\"></iframe>";
@@ -458,11 +491,9 @@ if ($action eq "near") {
   # Parsing the url being passed through (PUSH)
   my @cyclelist = split(/\s*,\s*/,$cycle);
 
-  my @sqledl = map{"\'" . "$_" . "\'"} @cyclelist;
+  my @sqledl = map {"\'" . "$_" . "\'"} @cyclelist;
 
   my $sqledl_list = join(', ', @sqledl);
-
-  $sqledl_list = $cycle;
 
   if (!defined($whatparam) || $whatparam eq "all") { 
     %what = ( committees => 1, 
@@ -474,6 +505,7 @@ if ($action eq "near") {
   }
 	       
   # Executing the different functions with CYCLES lists (as last param)
+
   if ($what{committees}) { 
     my ($str,$error) = Committees($latne,$longne,$latsw,$longsw,$cycle,$format,@sqledl);
     if (!$error) {
@@ -514,10 +546,33 @@ if ($action eq "near") {
       }
     }
   }
+  if ($what{committees}) { 
+    my ($str,$error) = CommitteeAggr($latne,$longne,$latsw,$longsw,$cycle,$format,@sqledl);
+    print $error;
+    if (!$error) {
+      if ($format eq "table") { 
+       print "<h2>Committee Aggr View</h2>$str";
+      } else {
+       print $str;
+      }
+    }
+  }
+  if ($what{individuals}) { 
+    my ($str,$error) = IndividualAggr($latne,$longne,$latsw,$longsw,$cycle,$format,@sqledl);
+    print $error;
+    if (!$error) {
+      if ($format eq "table") { 
+       print "<h2>Individual Aggr View</h2>$str";
+      } else {
+       print $str;
+      }
+    }
+  }
 }
 
 
-if ($action eq "invite-user") { my @rows;
+if ($action eq "invite-user") { 
+  my @rows;
       eval { @rows = ExecSQL($dbuser, $dbpasswd, "select action from RWB_PERMISSIONS where name='$user'", "COL"); };
 
       print start_form(-name=>'invite'),p,p,
@@ -548,16 +603,68 @@ if ($action eq "invite-user") { my @rows;
         $smtp->data();
         $smtp->datasend("To: " . $email . "\n");
         $smtp->datasend("\n");
-        $smtp->datasend("http://". $ENV{'HTTP_HOST'} ."/~lsl702/rwb/rwb.pl?act=register-user&n=$random_number&ref=$user&perm=$permissions");
+        $smtp->datasend("http://". $ENV{'HTTP_HOST'} ."/~ija144/rwb.pl?act=add-user&n=$random_number&ref=$user&perm=$permissions");
         $smtp->dataend();
         print $email . " has been sent an email request";
         } else{
           print "You must have an email";
         }
-      }
+}
 
-if ($action eq "give-opinion-data") { 
-  
+if ($action eq "register-user")
+{
+ my @rows;
+  my $nonce = url_param("n");
+  eval { @rows = ExecSQL($dbuser, $dbpasswd, "select nonce from rwb_invites WHERE nonce='$nonce'", "COL"); };
+
+ if (scalar(@rows)==0){
+          print h2('You do not have the required permissions to add users.');
+          } else {
+
+if (!$run) {
+      print start_form(-name=>'AddUser'),
+  h2('Add User'),
+    "Name: ", textfield(-name=>'name'),
+      p,
+        "Email: ", textfield(-name=>'email'),
+    p,
+      "Password: ", textfield(-name=>'password'),
+p,
+
+          hidden(-name=>'run',-default=>['1']),
+      hidden(-name=>'act',-default=>['register-user']),
+        submit,
+          end_form,
+            hr;
+}else {
+my $name=param('name');
+      my $email=param('email');
+      my $password=param('password');
+      my $error;
+        my $ref = param('ref');
+      $error=UserAdd($name,$password,$email,'root');
+
+if ($error) {
+  print "Can't add user because: $error";
+      }
+ else {
+          print "Added user $name $email as referred by $user\n";
+ my @return;
+            eval { @return = ExecSQL($dbuser, $dbpasswd, "delete from rwb_invites WHERE nonce='$nonce'", undef); };
+
+ };
+                my $perm=url_param('perm');
+                my $error2=GiveUserPermSpecial($name,$perm);
+
+ if ($error2) {
+                 print "Can't add permission to user because: $error2";
+                 } else {
+                   print "Gave user $name permission $perm\n";
+              }}}}
+
+
+if ($action eq "give-opinion-data") {
+
 print "<script src=\"http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js\" type=\"text/javascript\"></script>";
    print "<script type=\"text/javascript\" src=\"custom.js\"></script>";
 
@@ -585,50 +692,7 @@ print "<script src=\"http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.mi
 
  }
 
-if ($action eq "give-cs-ind-data") { 
-  print h2("Giving Crowd-sourced Individual Geolocations Is Unimplemented");
-}
 
-if ($action eq "register-user")
-{
-
-if (!$run) { 
-      print start_form(-name=>'AddUser'),
-  h2('Add User'),
-    "Name: ", textfield(-name=>'name'),
-      p,
-        "Email: ", textfield(-name=>'email'),
-    p,
-      "Password: ", textfield(-name=>'password'),
-p,
-          hidden(-name=>'run',-default=>['1']),
-      hidden(-name=>'act',-default=>['register-user']),
-        submit,
-          end_form,
-            hr;
-}else {
-my $name=param('name');
-      my $email=param('email');
-      my $password=param('password');
-      my $error;
-      $error=UserAdd($name,$password,$email,'root');
-if ($error) { 
-  print "Can't add user because: $error";
-      }
- else {
-	  print "Added user $name $email as referred by $user\n";
-      }
-	        my $name=param('name');
-                my $perm=url_param('perm');
-                my $error=GiveUserPerm($name,$perm);
-                if ($error) {
-                 print "Can't add permission to user because: $error";
-                 } else {
-                   print "Gave user $name permission $perm\n";
-                 }
-}
-
-}
 #
 # ADD-USER
 #
@@ -643,18 +707,18 @@ if ($action eq "add-user") {
   } else {
     if (!$run) { 
       print start_form(-name=>'AddUser'),
-  h2('Add User'),
-    "Name: ", textfield(-name=>'name'),
-      p,
-        "Email: ", textfield(-name=>'email'),
-    p,
-      "Password: ", textfield(-name=>'password'),
-        p,
-          hidden(-name=>'run',-default=>['1']),
-      hidden(-name=>'act',-default=>['add-user']),
-        submit,
-          end_form,
-            hr;
+	h2('Add User'),
+	  "Name: ", textfield(-name=>'name'),
+	    p,
+	      "Email: ", textfield(-name=>'email'),
+		p,
+		  "Password: ", textfield(-name=>'password'),
+		    p,
+		      hidden(-name=>'run',-default=>['1']),
+			hidden(-name=>'act',-default=>['add-user']),
+			  submit,
+			    end_form,
+			      hr;
     } else {
       my $name=param('name');
       my $email=param('email');
@@ -662,14 +726,14 @@ if ($action eq "add-user") {
       my $error;
       $error=UserAdd($name,$password,$email,$user);
       if ($error) { 
-  print "Can't add user because: $error";
+	print "Can't add user because: $error";
       } else {
-  print "Added user $name $email as referred by $user\n";
+	print "Added user $name $email as referred by $user\n";
       }
     }
   }
-  print "<p><a href=\"rwb.pl?act=base&run=1\">Return</a></p>";}
-
+  print "<p><a href=\"rwb.pl?act=base&run=1\">Return</a></p>";
+}
 
 #
 # DELETE-USER
@@ -852,10 +916,72 @@ print end_html;
 # ($table|$raw,$error) = Committees(latne,longne,latsw,longsw,cycle,format)
 # $error false on success, error string on failure
 #
+sub CommitteeAggr {
+  my ($latne,$longne,$latsw,$longsw,$cycle,$format,@sqledl) = @_;
+
+  my @rows_comm_to_cand;
+  my @rows_comm_to_comm;
+  eval { 
+    my $committees = "(select unique cmte_id, cmte_pty_affiliation
+                        from cs339.cmte_id_to_geo natural join cs339.committee_master
+                        where cycle IN (" . join(', ', @sqledl) . ")
+                        and latitude>$latsw 
+                        and latitude<$latne 
+                        and longitude>$longsw 
+                        and longitude<$longne)";
+    my $trans1 = "(select unique cmte_pty_affiliation, transaction_amnt
+                    from $committees natural join cs339.comm_to_comm
+                    where cycle IN (" . join(', ', @sqledl) . "))";
+    my $trans2 = "(select unique cmte_pty_affiliation, transaction_amnt
+                    from $committees natural join cs339.comm_to_cand
+                    where cycle IN (" . join(', ', @sqledl) . "))";
+    @rows_comm_to_cand = ExecSQL($dbuser, $dbpasswd, "select cmte_pty_affiliation, sum(transaction_amnt) from $trans1 group by cmte_pty_affiliation", undef);
+    @rows_comm_to_comm = ExecSQL($dbuser, $dbpasswd, "select cmte_pty_affiliation, sum(transaction_amnt) from $trans2 group by cmte_pty_affiliation",undef);
+  };
+  
+  if ($@) { 
+    return (undef,$@);
+  } else {
+    if ($format eq "table") { 
+      return (MakeTable("committee_aggr","2D",
+      ["party", "amount"],
+      (@rows_comm_to_cand, @rows_comm_to_comm)),$@);
+    } else {
+      return (MakeRaw("committee_aggr","2D",(@rows_comm_to_cand, @rows_comm_to_comm)),$@);
+    }
+  }
+}
+
+sub IndividualAggr {
+  my ($latne,$longne,$latsw,$longsw,$cycle,$format,@sqledl) = @_;
+  my @rows;
+  eval {
+    my $individuals = "(select sum(transaction_amnt)
+                        from cs339.individual natural join cs339.ind_to_geo 
+                        where cycle IN (" . join(', ', @sqledl) . ")
+                        and latitude>$latsw 
+                        and latitude<$latne 
+                        and longitude>$longsw 
+                        and longitude<$longne)";
+  @rows = ExecSQL($dbuser, $dbpasswd, $individuals, undef);
+  };
+  if ($@) { 
+    return (undef,$@);
+  } else {
+    if ($format eq "table") { 
+      return (MakeTable("individual_aggr","2D",
+      ["amount"],
+      @rows),$@);
+    } else {
+      return (MakeRaw("individual_aggr","2D",@rows),$@);
+    }
+  }
+}
+
 sub Committees {
   my ($latne,$longne,$latsw,$longsw,$cycle,$format,@sqledl) = @_;
   my @rows;
-  eval { 
+  eval {
     @rows = ExecSQL($dbuser, $dbpasswd, "select latitude, longitude, cmte_nm, cmte_pty_affiliation, cmte_st1, cmte_st2, cmte_city, cmte_st, cmte_zip 
                                          from cs339.committee_master natural join cs339.cmte_id_to_geo 
                                          where cycle IN (" . join(', ', @sqledl) . ") and latitude>? and latitude<? and longitude>? and longitude<?",undef,$latsw,$latne,$longsw,$longne);
