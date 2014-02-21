@@ -62,6 +62,10 @@ CREATE TABLE rwb_actions (
   action VARCHAR(64) NOT NULL primary key
 );
 
+CREATE TABLE rwb_invites (
+  nonce VARCHAR(64) NOT NULL primary key
+);
+
 --
 -- And the mapping from users to their actions
 --

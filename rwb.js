@@ -30,14 +30,14 @@ if (navigator.geolocation)  {
 
 
 function UpdateMapById(id, tag) {
-    // Demarked different params (commttee, individuals, etc.) as differnt colored pins
-    var bluePin = new google.maps.MarkerImage("http://maps.google.com/mapfiles/ms/icons/blue-dot.png");
-    var redPin = new google.maps.MarkerImage("http://maps.google.com/mapfiles/ms/icons/red-dot.png");
-    var greenPin = new google.maps.MarkerImage("http://maps.google.com/mapfiles/ms/icons/green-dot.png");
-    var yellowPin = new google.maps.MarkerImage("http://maps.google.com/mapfiles/ms/icons/yellow-dot.png");
-    var target = document.getElementById(id);
+  // Demarked different params (commttee, individuals, etc.) as differnt colored pins
+  var bluePin = new google.maps.MarkerImage("http://maps.google.com/mapfiles/ms/icons/blue-dot.png");
+  var redPin = new google.maps.MarkerImage("http://maps.google.com/mapfiles/ms/icons/red-dot.png");
+  var greenPin = new google.maps.MarkerImage("http://maps.google.com/mapfiles/ms/icons/green-dot.png");
+  var yellowPin = new google.maps.MarkerImage("http://maps.google.com/mapfiles/ms/icons/yellow-dot.png");
+  var target = document.getElementById(id);
+  if (target) {
     var data = target.innerHTML;
-
     var rows  = data.split("\n");
    
     for (i in rows) {
@@ -49,23 +49,74 @@ function UpdateMapById(id, tag) {
     						      icon: bluePin,
     						    position: new google.maps.LatLng(lat,long),
     						    title: tag+"\n"+cols.join("\n")}));
-    	}else if (id === "candidate_data"){
+    	}
+      if (id === "candidate_data"){
     		 markers.push(new google.maps.Marker({ map:map,
                                                           icon: redPin,
                                                         position: new google.maps.LatLng(lat,long),
                                                         title: tag+"\n"+cols.join("\n")}));
-    	}else if (id === "individual_data"){
+    	}
+      if (id === "individual_data"){
     		 markers.push(new google.maps.Marker({ map:map,
                                                           icon: greenPin,
                                                         position: new google.maps.LatLng(lat,long),
                                                         title: tag+"\n"+cols.join("\n")}));
-    	}else{
+    	}
+      if (id === "opinion_data"){
     		 markers.push(new google.maps.Marker({ map:map,
                                                           icon: yellowPin,
                                                         position: new google.maps.LatLng(lat,long),
                                                         title: tag+"\n"+cols.join("\n")}));
     	}
+    }
+  }
+}
+
+function UpdateComm()
+{
+  var target = document.getElementById("committee_aggr");
+  if (target) {
+    var data = target.innerHTML;
+    var demSum=0;
+    var repSum=0;
+
+    var rows = data.split("\n");
+    for (i in rows) {
+      var cols = rows[i].split("\t");
+      var pat = cols[0];
+      var amnt = parseInt(cols[1]);
+      if (pat==="DEM" || pat==="dem") {
+        demSum = demSum + amnt;
+      } else if (pat==="REP" || pat==="rep") {
+        repSum = repSum + amnt;
       }
+    }
+    var aggr = document.getElementById("commagg");
+    aggr.innerHTML="Total spent by committees is: "+(demSum+repSum);
+    if (demSum > repSum) {
+      aggr.style.backgroundColor='blue';
+    } else if (repSum > demSum) {
+      aggr.style.backgroundColor='red';
+    } else {
+      aggr.style.backgroundColor='green';
+    }
+  } else {
+    var aggr = document.getElementById("commagg");
+    aggr.innerHTML="Total spent by committees is: 0";
+  }
+}
+
+function UpdateIndv()
+{
+  var target = document.getElementById("individual_aggr");
+  if (target) {
+    var data = target.innerHTML;
+    var aggr = document.getElementById("indvagg");
+    aggr.innerHTML="Total spent by committees is: "+data;
+  } else {
+    var aggr = document.getElementById("indvagg");
+    aggr.innerHTML="Total spent by committees is: 0";
+  }
 }
 
 function ClearMarkers()
@@ -90,7 +141,8 @@ function UpdateMap()
     UpdateMapById("candidate_data","CANDIDATE");
     UpdateMapById("individual_data", "INDIVIDUAL");
     UpdateMapById("opinion_data","OPINION");
-
+    UpdateComm();
+    UpdateIndv();
 
     color.innerHTML="Ready";
     
@@ -113,7 +165,7 @@ function NewData(data)
 }
 
 function SelectedCycles() {
-  var Cycles = document.getElementById('cycles');
+  var Cycles = document.getElementById("cycles");
   var x = 0;
   var arr = [];
   for (x=0;x<Cycles.options.length;x++) {
@@ -141,10 +193,9 @@ function ViewShift()
     queryString += "&cycle=" + sCycles.toString() +"&format=raw";
 
     //Check to see if checkboxes checked
-    if(committees.checked && individuals.checked && candidates.checked && opinions.checked 
-      || !committees.checked && !individuals.checked && !candidates.checked && !opinions.checked){
+    if((committees.checked && individuals.checked && candidates.checked && opinions.checked) 
+      || (!committees.checked && !individuals.checked && !candidates.checked && !opinions.checked)){
       queryString += "&what=all";
-      console.log(queryString);
       $.get(queryString, NewData);
     }else{
       var pushData = "";
@@ -164,8 +215,7 @@ function ViewShift()
       }
 
       pushData = pushArray.join(',');
-      queryString += "&what=" +pushData;
-      console.log(queryString);
+      queryString += "&what=" + pushData;
       $.get(queryString,NewData);
     }
 }
@@ -196,7 +246,7 @@ function Start(location)
 				} );
   var purplePin = new google.maps.MarkerImage("http://maps.google.com/mapfiles/ms/icons/purple-dot.png");
   usermark = new google.maps.Marker({ map:map,
-				icon: purplePin,
+				      icon: purplePin,
 					    position: new google.maps.LatLng(lat,long),
 					    title: "You are here"});
 
